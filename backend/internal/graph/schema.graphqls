@@ -1,0 +1,207 @@
+"""
+Sentrix GraphQL Schema
+Defines queries, mutations, and subscriptions for the security platform.
+"""
+
+scalar Time
+scalar UUID
+
+# ─── Types ──────────────────────────────────────────────────────────
+
+type User {
+  id: UUID!
+  email: String!
+  displayName: String!
+  role: String!
+  createdAt: Time!
+}
+
+type BrowserCapabilities {
+  mode: String!
+  screenshotsEnabled: Boolean!
+}
+
+type Flow {
+  id: UUID!
+  title: String!
+  description: String!
+  target: String!
+  status: String!
+  config: String!
+  createdAt: Time!
+  updatedAt: Time!
+  tasks: [Task!]!
+  browserCapabilities: BrowserCapabilities!
+}
+
+type Task {
+  id: UUID!
+  title: String!
+  description: String!
+  status: String!
+  result: String
+  sortOrder: Int!
+  createdAt: Time!
+  updatedAt: Time!
+  subtasks: [Subtask!]!
+}
+
+type Subtask {
+  id: UUID!
+  title: String!
+  agentRole: String!
+  status: String!
+  context: String!
+  result: String
+  createdAt: Time!
+  updatedAt: Time!
+  actions: [Action!]!
+}
+
+type Action {
+  id: UUID!
+  actionType: String!
+  status: String!
+  input: String!
+  output: String
+  durationMs: Int
+  createdAt: Time!
+}
+
+type ProviderConfig {
+  id: UUID!
+  providerType: String!
+  modelName: String!
+  baseUrl: String
+  isDefault: Boolean!
+  hasApiKey: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type APIToken {
+  id: UUID!
+  label: String!
+  lastUsedAt: Time
+  expiresAt: Time
+  createdAt: Time!
+}
+
+# ─── Inputs ─────────────────────────────────────────────────────────
+
+input CreateFlowInput {
+  title: String!
+  description: String
+  target: String
+  config: String
+}
+
+input UpdateFlowInput {
+  title: String
+  description: String
+  target: String
+  status: String
+  config: String
+}
+
+input CreateProviderInput {
+  providerType: String!
+  modelName: String
+  apiKey: String
+  baseUrl: String
+  isDefault: Boolean
+  config: String
+}
+
+input UpdateProviderInput {
+  modelName: String
+  apiKey: String
+  baseUrl: String
+  isDefault: Boolean
+  config: String
+}
+
+input CreateAPITokenInput {
+  label: String!
+}
+
+# ─── Queries ────────────────────────────────────────────────────────
+
+type Query {
+  """Current authenticated user."""
+  me: User!
+
+  """List all flows for the current user."""
+  flows: [Flow!]!
+
+  """Get single flow by ID with nested tasks."""
+  flow(id: UUID!): Flow
+
+  """List configured LLM providers."""
+  providers: [ProviderConfig!]!
+
+  """List API tokens (hashed, no raw values)."""
+  apiTokens: [APIToken!]!
+}
+
+# ─── Mutations ──────────────────────────────────────────────────────
+
+type Mutation {
+  """Create a new assessment flow."""
+  createFlow(input: CreateFlowInput!): Flow!
+
+  """Update an existing flow."""
+  updateFlow(id: UUID!, input: UpdateFlowInput!): Flow!
+
+  """Delete a flow."""
+  deleteFlow(id: UUID!): Boolean!
+
+  """Stop a running flow."""
+  stopFlow(id: UUID!): Flow!
+
+  """Add or update an LLM provider."""
+  createProvider(input: CreateProviderInput!): ProviderConfig!
+
+  """Update a provider configuration."""
+  updateProvider(id: UUID!, input: UpdateProviderInput!): ProviderConfig!
+
+  """Remove a provider."""
+  deleteProvider(id: UUID!): Boolean!
+
+  """Generate a new API token. Raw value returned only once."""
+  createAPIToken(input: CreateAPITokenInput!): CreateAPITokenPayload!
+
+  """Revoke an API token."""
+  deleteAPIToken(id: UUID!): Boolean!
+}
+
+type CreateAPITokenPayload {
+  token: String!
+  data: APIToken!
+}
+
+# ─── Subscriptions ──────────────────────────────────────────────────
+
+type Subscription {
+  """Stream real-time progress updates for a running flow."""
+  flowProgress(flowId: UUID!): FlowEvent!
+
+  """Stream action outputs as they happen."""
+  actionOutput(flowId: UUID!): ActionEvent!
+}
+
+type FlowEvent {
+  flowId: UUID!
+  taskId: UUID
+  status: String!
+  message: String!
+  timestamp: Time!
+}
+
+type ActionEvent {
+  actionId: UUID!
+  subtaskId: UUID!
+  actionType: String!
+  output: String!
+  timestamp: Time!
+}

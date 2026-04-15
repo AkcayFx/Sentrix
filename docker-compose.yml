@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: sentrix
+      POSTGRES_PASSWORD: sentrix
+      POSTGRES_DB: sentrix
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentrix"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentrix-net
+
+  scraper:
+    image: vxcontrol/scraper:latest
+    environment:
+      USERNAME: ${LOCAL_SCRAPER_USERNAME:-sentrix}
+      PASSWORD: ${LOCAL_SCRAPER_PASSWORD:-sentrix}
+      MAX_CONCURRENT_SESSIONS: ${LOCAL_SCRAPER_MAX_CONCURRENT_SESSIONS:-5}
+    shm_size: 2g
+    networks:
+      - sentrix-net
+
+  app:
+    build: .
+    # Local Docker socket access on Docker Desktop typically requires root
+    # inside the container so the sandbox can start tool containers.
+    user: "0:0"
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: sentrix
+      DB_PASSWORD: sentrix
+      DB_NAME: sentrix
+      DB_SSLMODE: disable
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEFAULT_LLM_PROVIDER: ${DEFAULT_LLM_PROVIDER:-deepseek}
+      # Sandbox (Docker-in-Docker)
+      DOCKER_ENABLED: ${DOCKER_ENABLED:-false}
+      DOCKER_SOCKET: /var/run/docker.sock
+      DOCKER_DEFAULT_IMAGE: ${DOCKER_DEFAULT_IMAGE:-sentrix-tools:latest}
+      DOCKER_NETWORK: sentrix-sandbox
+      DOCKER_DATA_DIR: /app/data/sandbox
+      DOCKER_INSIDE: "true"
+      # Embedding (Phase 8)
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-none}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      # Scraper (embedded)
+      SCRAPER_PRIVATE_URL: https://${LOCAL_SCRAPER_USERNAME:-sentrix}:${LOCAL_SCRAPER_PASSWORD:-sentrix}@scraper/
+      SCRAPER_PUBLIC_URL: ${SCRAPER_PUBLIC_URL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      scraper:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - sandbox-data:/app/data/sandbox
+    networks:
+      - sentrix-net
+
+volumes:
+  pgdata:
+  sandbox-data:
+
+networks:
+  sentrix-net:
+    driver: bridge

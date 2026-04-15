@@ -1,0 +1,61 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Docs / meta
+README.md
+LICENSE
+CONTRIBUTING.md
+*.md
+images/
+screenshots/
+docs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend build artifacts (Dockerfile rebuilds these)
+frontend/node_modules
+frontend/dist
+frontend/.vite
+frontend/coverage
+frontend/tsconfig.tsbuildinfo
+frontend/*.log
+
+# Backend build artifacts
+backend/tmp
+backend/vendor
+backend/sentrix
+backend/*.exe
+backend/coverage.out
+backend/*.test
+
+# Observability stack (not needed inside app image)
+observability/
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Test / coverage
+coverage/
+*.cover
+*.out
+
+# Misc temp files
+_tmp_*
+*.tmp
+*.bak

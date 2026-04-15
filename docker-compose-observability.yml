@@ -1,0 +1,84 @@
+services:
+  app:
+    depends_on:
+      otel-collector:
+        condition: service_started
+    environment:
+      OBSERVABILITY_ENABLED: "true"
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-sentrix}
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      OTEL_TRACE_SAMPLE_RATE: ${OTEL_TRACE_SAMPLE_RATE:-1.0}
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.119.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      jaeger:
+        condition: service_started
+      victoria-metrics:
+        condition: service_started
+    networks:
+      - sentrix-net
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.63.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+    networks:
+      - sentrix-net
+
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:v1.111.0
+    command:
+      - "--storageDataPath=/victoria-metrics-data"
+      - "--httpListenAddr=:8428"
+    ports:
+      - "8428:8428"
+    volumes:
+      - victoria-metrics-data:/victoria-metrics-data
+    networks:
+      - sentrix-net
+
+  loki:
+    image: grafana/loki:3.4.1
+    command: ["-config.file=/etc/loki/config.yml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    networks:
+      - sentrix-net
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      jaeger:
+        condition: service_started
+      loki:
+        condition: service_started
+      victoria-metrics:
+        condition: service_started
+    networks:
+      - sentrix-net
+
+volumes:
+  grafana-data:
+  loki-data:
+  victoria-metrics-data:
